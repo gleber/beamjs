@@ -1,4 +1,3 @@
-
 -module(beamjs_sup).
 
 -behaviour(supervisor).
@@ -16,14 +15,10 @@
 %% API functions
 %% ===================================================================
 
-start_link() ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+start_link() -> supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
-init([]) ->
-    {ok, { {one_for_one, 5, 10}, [
-								 ]} }.
-
+init([]) -> {ok, {{one_for_one, 5, 10}, []}}.
