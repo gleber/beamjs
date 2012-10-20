@@ -33,9 +33,9 @@ require(VM, Filename) when is_pid(VM) ->
 
 require_fun(#erlv8_fun_invocation{vm = VM}, [#erlv8_object{} = Opts]) ->
     case Opts:proplist() of
-        [{"module", Module}] when is_list(Module) ->
+        [{<<"module">>, Module}] when is_binary(Module) ->
             Mod = list_to_atom(Module), erlv8_vm:taint(VM, Mod:exports(VM));
-        [{"join", Modules}] when is_list(Modules) ->
+        [{<<"join">>, Modules}] when is_list(Modules) ->
             NewExports = erlv8_vm:taint(VM, ?V8Obj([])),
             Throws = [V2
                       || V2 <- [require_fun_1(V1, NewExports, VM) || V1 <- Modules],
@@ -70,7 +70,9 @@ file_reader(Path, Filename) ->
         Result -> Result
     end.
 
-file_reader(Path, Filename, Ext) ->
+file_reader(Path0, Filename0, Ext) ->
+    Path = binary_to_list(Path0),
+    Filename = binary_to_list(Filename0),
     case file:read_file(filename:join([Path, Filename ++ Ext])) of
         {error, _} -> not_found;
         {ok, B} ->
