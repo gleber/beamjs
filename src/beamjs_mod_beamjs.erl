@@ -47,7 +47,7 @@ vm_stop(#erlv8_fun_invocation{this = This}, []) ->
         VM -> erlv8_vm:stop(VM), This:set_hidden_value("VMServer", undefined), ok
     end.
 
-vm_run(#erlv8_fun_invocation{this = This}, [Code]) when is_list(Code) ->
+vm_run(#erlv8_fun_invocation{this = This}, [Code]) when is_binary(Code) ->
     case This:get_hidden_value("VMServer") of
         undefined -> {throw, {error, "VM is not started"}};
         VM ->
@@ -59,7 +59,7 @@ vm_run(#erlv8_fun_invocation{this = This}, [Code]) when is_list(Code) ->
             end
     end;
 vm_run(#erlv8_fun_invocation{} = I, [Code, #erlv8_fun{} = Callback])
-  when is_list(Code) ->
+  when is_binary(Code) ->
     spawn(fun () -> Result = vm_run(I, [Code]), Callback:call([Result]) end), ok.
 
 reload(#erlv8_fun_invocation{} = _Invocation, []) ->

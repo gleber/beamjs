@@ -74,8 +74,8 @@ file_reader(Path, Filename) ->
     end.
 
 file_reader(Path0, Filename0, Ext) ->
-    Path = binary_to_list(Path0),
-    Filename = binary_to_list(Filename0),
+    Path = binary_to_list(iolist_to_binary(Path0)),
+    Filename = binary_to_list(iolist_to_binary(Filename0)),
     case file:read_file(filename:join([Path, Filename ++ Ext])) of
         {error, _} -> not_found;
         {ok, B} ->

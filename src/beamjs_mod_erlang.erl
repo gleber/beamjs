@@ -67,15 +67,19 @@ new_binary(#erlv8_fun_invocation{vm = VM, is_construct_call = ICC}, [List])
 
 erlang_apply(#erlv8_fun_invocation{vm = VM},
              [Module, Fun, #erlv8_array{} = Args])
-  when is_list(Module) andalso is_list(Fun) ->
+  when is_binary(Module) andalso is_binary(Fun) ->
     from_native(VM,
-                erlang:apply(list_to_atom(Module), list_to_atom(Fun), to_native(VM, Args)));
+                erlang:apply(list_to_atom(binary_to_list(Module)),
+                             list_to_atom(binary_to_list(Fun)),
+                             to_native(VM, Args)));
 erlang_apply(#erlv8_fun_invocation{vm = VM},
              [Module, Fun, #erlv8_array{} = Args, #erlv8_fun{} = Cb])
-  when is_list(Module) andalso is_list(Fun) ->
+  when is_binary(Module) andalso is_binary(Fun) ->
     spawn(fun () ->
                   Cb:call([from_native(VM,
-                                       erlang:apply(list_to_atom(Module), list_to_atom(Fun), to_native(VM, Args)))])
+                                       erlang:apply(list_to_atom(binary_to_list(Module)),
+                                                    list_to_atom(binary_to_list(Fun)),
+                                                    to_native(VM, Args)))])
           end).
 
 to_native(VM, #erlv8_object{} = O) ->
