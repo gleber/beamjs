@@ -14,14 +14,24 @@ load(VM, Bundle) when is_list(Bundle) ->
     Globals = Require:call([filename:join(["lib_bundles", Bundle, "__globals__"])]),
     case Globals of
         #erlv8_object{} ->
-            lists:foreach(fun ({K, V}) -> Global:set_value(K, V) end, Globals:proplist());
-        _V -> error({bundle, Globals})
+            lists:foreach(fun({K, V}) ->
+                                  Global:set_value(K, V)
+                          end, Globals:proplist());
+        {throw, {error, E}} ->
+            error({bundle, {error, E:proplist()}});
+        _V ->
+            error({bundle, Globals})
     end,
     Modules = Require:call([filename:join(["lib_bundles", Bundle, "__modules__"])]),
     case Modules of
         #erlv8_object{} ->
-            lists:foreach(fun ({K, V}) -> erlv8_vm:stor(VM, {?MODULE, module, K}, V) end,
+            lists:foreach(fun({K, V}) ->
+                                  erlv8_vm:stor(VM, {?MODULE, module, K}, V)
+                          end,
                           Modules:proplist());
-        {throw, _} -> error({bundle, Modules})
+        {throw, {error, E2}} ->
+            error({bundle, {error, E2:proplist()}});
+        {throw, _} ->
+            error({bundle, Modules})
     end,
     Bundle.
