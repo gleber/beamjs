@@ -9,16 +9,20 @@ deps/erlv8/ebin/erlv8.beam: submodules
 
 dependencies: deps/erlv8/ebin/erlv8.beam
 
+sh:
+	@./shell
+
 test: compile
 	@./rebar eunit
 
 test-commonjs: compile
-	@./beamjs -norepl -bundles node_compat commonjs  -load deps/commonjs/tests/unit-testing/1.0/program.js 
+	@./beamjs -norepl -bundles node_compat commonjs  -load deps/commonjs/tests/unit-testing/1.0/program.js
 
-compile: dependencies
+compile:
+	#dependencies
 	@./rebar compile
 
-release: 
+release:
 	@rm -rf rel/beamjs
 	@rm -rf rel/apps
 	@mkdir -p rel/apps/beamjs
@@ -35,5 +39,5 @@ install: release
 
 archive: release
 	@tar c -C rel beamjs > beamjs.tar
-	@gzip beamjs.tar 
+	@gzip beamjs.tar
 	@rm -rf rel/beamjs
