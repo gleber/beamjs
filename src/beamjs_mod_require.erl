@@ -32,10 +32,13 @@ require(VM, Filename) when is_pid(VM) ->
     require_fun(#erlv8_fun_invocation{vm = VM, ctx = Ctx}, [Filename]).
 
 require_fun(#erlv8_fun_invocation{vm = VM}, [#erlv8_object{} = Opts]) ->
-    case Opts:proplist() of
-        [{<<"module">>, Module}] when is_binary(Module) ->
-            Mod = list_to_atom(Module), erlv8_vm:taint(VM, Mod:exports(VM));
-        [{<<"join">>, Modules}] when is_list(Modules) ->
+    PL = Opts:proplist(),
+    case {proplists:get_value(<<"module">>, PL),
+          proplists:get_value(<<"join">>, PL)} of
+        {Module, _} when is_binary(Module) ->
+            Mod = list_to_atom(binary_to_list(Module)),
+            erlv8_vm:taint(VM, Mod:exports(VM));
+        {_, Modules} when is_list(Modules) ->
             NewExports = erlv8_vm:taint(VM, ?V8Obj([])),
             Throws = [V2
                       || V2 <- [require_fun_1(V1, NewExports, VM) || V1 <- Modules],
@@ -112,10 +115,15 @@ require_file(#erlv8_fun_invocation{vm = VM} = Invocation, Filename) ->
                 [] ->
                     NewCtx = erlv8_context:new(VM),
                     NewGlobal = erlv8_context:global(NewCtx),
-                    lists:foreach(fun ({K, V}) -> NewGlobal:set_value(K, V) end, Global:proplist()),
+                    lists:foreach(fun ({K, V}) ->
+                                          NewGlobal:set_value(K, V)
+                                  end,
+                                  Global:proplist()),
                     NewGlobal:set_value("require", fun require_fun/2),
                     NewRequire = NewGlobal:get_value("require"),
-                    lists:foreach(fun ({K, V}) -> NewRequire:set_value(K, V) end,
+                    lists:foreach(fun ({K, V}) ->
+                                          NewRequire:set_value(K, V)
+                                  end,
                                   Require:proplist()),
                     NewPaths = NewRequire:get_value("paths"),
                     NewRequire:set_value("paths",
@@ -142,7 +150,9 @@ require_file(#erlv8_fun_invocation{vm = VM} = Invocation, Filename) ->
                             Exports = NewGlobal:get_value("exports"),
                             ets:insert(Tab, {Filename, Exports}),
                             Exports;
-                        {_, E} -> ets:delete(Tab, Filename), {throw, {error, E}}
+                        {_, E} ->
+                            ets:delete(Tab, Filename),
+                            {throw, {error, E}}
                     end
             end
     end.
