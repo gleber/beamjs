@@ -83,12 +83,17 @@ file_reader(Path0, Filename0, Ext) ->
              binary_to_list(B)}
     end.
 
-require_file(#erlv8_fun_invocation{vm = VM} = Invocation, Filename) ->
+require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) ->
     Global = Invocation:global(),
-    Require = erlv8_vm:taint(VM, fun require_fun/2),  %%Global:get_value("require"),
+    io:format("~s Requiring ~p~n", [?MODULE, Filename]),
+    io:format("~s XYZ in require: ~p~n~n", [?MODULE, Global:get_value("xyz")]),
+    %%Require = erlv8_vm:taint(VM, fun require_fun/2),
+    Require = Global:get_value("require"),
     RequireObject = Require:object(),
-    Paths = (Global:get_value("require")):get_value("paths",
-                                                    erlv8_vm:taint(VM, ?V8Arr([""]))),
+    %% C = RequireObject:get_value("count", 0),
+    %% RequireObject:set_value("count", C + 1),
+    %% io:format("Require object: ~p~n~n", [Require:proplist()]),
+    Paths = RequireObject:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([""]))),
     RequireObject:set_value("paths", Paths),
     Dirname = filename:absname(Global:get_value("__dirname")),
     Sources = [V2
