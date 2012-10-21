@@ -12,22 +12,28 @@ exports(VM) ->
     PidProto = erlv8_extern:get_proto(VM, pid),
     PidProto:set_value("toString",
                        fun (#erlv8_fun_invocation{this = This}, []) ->
-                               "[pid " ++ pid_to_list(This) ++ "]"
+                               %% "[pid " ++ pid_to_list(This) ++ "]"
+                               "[pid " ++ lists:flatten(io_lib:format("~p", [This])) ++ "]"
                        end),
     %% I know erlang documentation says we shouldn't use it, but I wonder how terribly I'll be punished for this?
     RefProto = erlv8_extern:get_proto(VM, ref),
     RefProto:set_value("toString",
                        fun (#erlv8_fun_invocation{this = This}, []) ->
-                               "[ref " ++ erlang:ref_to_list(This) ++ "]"
+                               %% "[ref " ++ erlang:ref_to_list(This) ++ "]"
+                               "[ref " ++ lists:flatten(io_lib:format("~p", [This])) ++ "]"
                        end),
     %% Same goes to this
     AtomProto = erlv8_extern:get_proto(VM, atom),
     AtomProto:set_value("toString",
-                        fun (#erlv8_fun_invocation{this = This}, []) -> atom_to_list(This) end),
+                        fun (#erlv8_fun_invocation{this = This}, []) -> 
+                                lists:flatten(io_lib:format("~p", [This]))
+                                %%atom_to_list(This) 
+                        end),
     PortProto = erlv8_extern:get_proto(VM, port),
     PortProto:set_value("toString",
                         fun (#erlv8_fun_invocation{this = This}, []) ->
-                                "[port " ++ erlang:port_to_list(This) ++ "]"
+                                %"[port " ++ port_to_list(This) ++ "]"
+                                "[port " ++ lists:flatten(io_lib:format("~p", [This])) ++ "]"
                         end),
     %% And this
     BinProto = erlv8_extern:get_proto(VM, bin),
