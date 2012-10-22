@@ -86,20 +86,14 @@ file_reader(Path0, Filename0, Ext) ->
 require_file(#erlv8_fun_invocation{vm = VM} = Invocation, Filename) ->
     CtxObj = erlv8_context:get(VM),
     Global = Invocation:global(),
-    io:format("~s Requiring ~p~n", [?MODULE, Filename]),
-    io:format("~s XYZ in require: ~p~n~n", [?MODULE, Global:get_value("xyz")]),
-    %%Require = erlv8_vm:taint(VM, fun require_fun/2),
+    %% io:format("~s Requiring ~p~n", [?MODULE, Filename]),
     Require = Global:get_value("require"),
-    RequireObject = Require:object(),
-    %% C = RequireObject:get_value("count", 0),
-    %% RequireObject:set_value("count", C + 1),
-    %% io:format("Require object: ~p~n~n", [Require:proplist()]),
-    Paths = RequireObject:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([""]))),
-    RequireObject:set_value("paths", Paths),
+    Paths = Require:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([""]))),
+    Require:set_value("paths", Paths),
     Dirname = filename:absname(Global:get_value("__dirname")),
-    Sources = [V2
-               || V2 <- [require_file_1(V1, Filename) || V1 <- [Dirname | Paths:list()]],
-                  require_file_1(V2)],
+    Sources = [V2 || V2 <- [require_file_1(V1, Filename) || V1 <- [Dirname | Paths:list()]],
+                     require_file_1(V2)],
+    %% io:format("~s sources ~p~n", [?MODULE, Sources]),
     case Sources of
         [] ->
             {throw,

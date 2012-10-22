@@ -34,7 +34,7 @@ args(toolbar) ->
         _ -> false
     end.
 
-args(VM, Global, bundles) ->
+args(VM, _Global, bundles) ->
     case init:get_argument(bundles) of
         {ok, [Bundles]} ->
             lists:foreach(fun (Bundle) ->
@@ -48,14 +48,14 @@ args(VM, Global, bundles) ->
         _ -> false
     end;
 
-args(VM, Global, jseval) ->
+args(VM, _Global, jseval) ->
     case init:get_argument(jseval) of
         {ok, [[JS]]} ->
             erlv8_vm:run(VM, erlv8_context:get(VM), JS, {"(command line)", 0, 0});
         _ -> false
     end;
 
-args(VM, Global, path) ->
+args(_VM, Global, path) ->
     case init:get_argument(jspath) of
         {ok, [Paths]} ->
             lists:foreach(fun (Path) ->
@@ -67,21 +67,21 @@ args(VM, Global, path) ->
         _ -> false
     end;
 
-args(VM, Global, load) ->
+args(_VM, Global, load) ->
     case init:get_argument(load) of
         {ok, [Files]} ->
             lists:foreach(fun(File) ->
-                                  Global:set_value("xyz", "def222"),
-                                  io:format("~s Changing XYZ ~s~n", [?MODULE, erlv8_vm:to_detail_string(VM, Global)]),
                                   Require = Global:get_value("require"),
                                   Global:set_value("module", ?V8Obj([])),
                                   Module = Global:get_value("module"),
                                   Module:set_value("id", File, [dontdelete, readonly]),
                                   Require:set_value("main", Module, [dontdelete, readonly]),
-                                  case Require:call([File]) of
-                                      {throw, {error, #erlv8_object{} = E}} -> io:format("~p~n", [E:proplist()]);
-                                      _ -> ignore
-                                  end
+                                  Res = case Require:call([File]) of
+                                            {throw, {error, #erlv8_object{} = E}} -> io:format("~p~n", [E:proplist()]);
+                                            _ -> ignore
+                                        end,
+                                  %% io:format("load res ~p~n", [Res]),
+                                  Res
                           end,
                           Files);
         _ -> false
@@ -90,7 +90,7 @@ args(VM, Global, load) ->
 -define(REPL_START, "require('repl').start()").
 
 main() ->
-    [ t:t(X) || X <- [beamjs,erlv8_nif,{erlv8_vm,enqueue_tick}] ],
+    %% [ t:t(X) || X <- [beamjs,erlv8_nif,{erlv8_vm,enqueue_tick}] ],
     case os:getenv("ERLV8_SO_PATH") of
         false -> os:putenv("ERLV8_SO_PATH", "./deps/erlv8/priv")
     end,
@@ -102,13 +102,12 @@ main() ->
     install_require(VM),
     Global:set_value("xyz", "def"),
     args(VM, Global, jseval),
-    %% beamjs_bundle:load(VM, default),
+    beamjs_bundle:load(VM, default),
     NoRepl = args(norepl),
     args(toolbar),
     args(VM, Global, path),
     args(VM, Global, bundles),
     args(VM, Global, load),
-    io:format("~s Final: ~p~n", [?MODULE, Global:get_value("xyz")]),
     case NoRepl of
         true -> ok;
         false ->
@@ -117,8 +116,7 @@ main() ->
             Module = Global:get_value("module"),
             Module:set_value("id", "repl", [readonly, dontdelete]),
             Require = Global:get_value("require"),
-            RequireObject = Require:object(),
-            RequireObject:set_value("main", Module, [readonly, dontdelete]),
+            Require:set_value("main", Module, [readonly, dontdelete]),
             erlv8_vm:run(VM, erlv8_context:get(VM), ?REPL_START, {"main", 0, 0}),
             receive _ -> ok end
     end,
