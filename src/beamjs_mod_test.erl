@@ -11,8 +11,8 @@ init(_VM) -> ok.
 exports(_VM) -> ?V8Obj([{"run", fun run/2}]).
 
 run(#erlv8_fun_invocation{vm = VM} = I, [#erlv8_object{} = Tests]) ->
-    lists:foreach(fun ({"test" ++ Name, #erlv8_fun{} = Test})
-                        when length(Name) > 0 ->
+    lists:foreach(fun ({<<"test", Name/binary>>, #erlv8_fun{} = Test})
+                        when size(Name) > 0 ->
                           io:format("\e[0m~n Test: ~s~n", [Name]),
                           case Test:call() of
                               {throw, E} ->
@@ -23,7 +23,7 @@ run(#erlv8_fun_invocation{vm = VM} = I, [#erlv8_object{} = Tests]) ->
                                   end;
                               _ -> io:format("    \e[32mpassed\e[0m~n")
                           end;
-                      ({"test" ++ Name, #erlv8_object{} = TestsObj}) when length(Name) > 0 ->
+                      ({<<"test", Name/binary>>, #erlv8_object{} = TestsObj}) when size(Name) > 0 ->
                           run(I, [TestsObj]);
                       (_) -> ignore
                   end,
