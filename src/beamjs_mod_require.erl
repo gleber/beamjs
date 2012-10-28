@@ -83,8 +83,7 @@ file_reader(Path0, Filename0, Ext) ->
              binary_to_list(B)}
     end.
 
-require_file(#erlv8_fun_invocation{vm = VM} = Invocation, Filename) ->
-    CtxObj = erlv8_context:get(VM),
+require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) ->
     Global = Invocation:global(),
     %% io:format("~s Requiring ~p~n", [?MODULE, Filename]),
     Require = Global:get_value("require"),
@@ -113,32 +112,42 @@ require_file(#erlv8_fun_invocation{vm = VM} = Invocation, Filename) ->
                                                   [Filename, ModuleId]))}};
                 [{Filename, Exports}] -> Exports;
                 [] ->
-                    GlobalData = Global:proplist(),
-                    OldModule = Global:get_value("module"),
-                    OldExports = Global:get_value("exports"),
-                    Paths = Require:get_value("paths"),
-                    Require:set_value("paths", ?V8Arr((lists:usort([Dirname | Paths:list()])))),
-
-                    case OldExports of
-                        undefined ->
-                            ok;
-                        _ ->
-                            Global:set_value("module", ?V8Obj([]))
+                    NewCtx = erlv8_context:new(VM),
+                    NewGlobal = erlv8_context:global(NewCtx),
+                    lists:foreach(fun ({K, V}) ->
+                                          NewGlobal:set_value(K, V)
+                                  end,
+                                  Global:proplist()),
+                    NewGlobal:set_value("require", fun require_fun/2),
+                    NewRequire = NewGlobal:get_value("require"),
+                    lists:foreach(fun ({K, V}) ->
+                                          NewRequire:set_value(K, V)
+                                  end,
+                                  Require:proplist()),
+                    NewPaths = NewRequire:get_value("paths"),
+                    NewRequire:set_value("paths",
+                                         ?V8Arr((lists:usort([Dirname | NewPaths:list()])))),
+                    case Global:get_value("exports") of
+                        undefined -> NewGlobal:set_value("module", Global:get_value("module"));
+                        _ -> NewGlobal:set_value("module", ?V8Obj([]))
                     end,
-                    Module = Global:get_value("module"),
+                    Module = NewGlobal:get_value("module"),
                     Module:set_value("id", Filename, [dontdelete, readonly]),
-                    Global:set_value("exports", ?V8Obj([])),
-                    Global:set_value("__dirname", Path),
-                    Global:set_value("__filename", filename:join([Path, LoadedFilename])),
+                    NewGlobal:set_value("exports", ?V8Obj([])),
+                    NewGlobal:set_value("__dirname", Path),
+                    NewGlobal:set_value("__filename", filename:join([Path, LoadedFilename])),
                     ets:insert(Tab, {Filename, loading}),
-                    case erlv8_vm:run(VM, CtxObj, S, {LoadedFilename, 0, 0}) of
+                    case erlv8_vm:run(VM, NewCtx, S, {LoadedFilename, 0, 0}) of
                         {ok, _} ->
-                            Exports = Global:get_value("exports"),
+                            lists:foreach(fun ({"exports", _}) -> ignore;
+                                              ({"__dirname", _}) -> ignore;
+                                              ({"__filename", _}) -> ignore;
+                                              ({"module", _}) -> ignore;
+                                              ({K, V}) -> Global:set_value(K, V)
+                                          end,
+                                          NewGlobal:proplist()),
+                            Exports = NewGlobal:get_value("exports"),
                             ets:insert(Tab, {Filename, Exports}),
-                            Global:set_value("module", OldModule),
-                            Global:set_value("exports", OldExports),
-                            Global:set_value("__dirname", proplists:get_value(<<"__dirname">>, GlobalData)),
-                            Global:set_value("__filename", proplists:get_value(<<"__filename">>, GlobalData)),
                             Exports;
                         {_, E} ->
                             ets:delete(Tab, Filename),
