@@ -12,8 +12,10 @@ dependencies: deps/erlv8/ebin/erlv8.beam
 sh:
 	@./shell
 
-test: compile
+eunit: compile
 	@./rebar eunit
+
+test: compile eunit test-commonjs
 
 test-commonjs: compile
 	@./beamjs -norepl -bundles node_compat commonjs  -load deps/commonjs/tests/unit-testing/1.0/program.js
