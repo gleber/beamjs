@@ -101,7 +101,6 @@ main() ->
     {ok, VM} = erlv8_vm:start(),
     Global = erlv8_vm:global(VM),
     install_require(VM),
-    Global:set_value("xyz", "def"),
     args(VM, Global, jseval),
     beamjs_bundle:load(VM, default),
     NoRepl = args(norepl),

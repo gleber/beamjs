@@ -10,13 +10,12 @@ load(VM, Bundle) when is_list(Bundle) ->
     Global = erlv8_vm:global(VM),
     Require = Global:get_value("require"),
     Global:set_value("__dirname", filename:absname("")),
-    Global:set_value("module", ?V8Obj([{"id", "init"}, {"exports", ?V8Obj([])}])),
+    Global:set_value("module", ?V8Obj([{<<"id">>, <<"init">>},
+                                       {<<"exports">>, ?V8Obj([])}])),
     Globals = Require:call([filename:join(["lib_bundles", Bundle, "__globals__"])]),
     case Globals of
         #erlv8_object{} ->
-            lists:foreach(fun({K, V}) ->
-                                  Global:set_value(K, V)
-                          end, Globals:proplist());
+            Globals:copy_properties_to(Global);
         {throw, {error, E}} ->
             error({bundle, {error, E:proplist()}});
         _V ->

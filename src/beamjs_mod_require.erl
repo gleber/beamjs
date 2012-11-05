@@ -83,10 +83,10 @@ file_reader(Path0, Filename0, Ext) ->
              binary_to_list(B)}
     end.
 
-require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) ->
+require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) ->
     Global = Invocation:global(),
-    %% io:format("~s Requiring ~p~n", [?MODULE, Filename]),
     Require = Global:get_value("require"),
+    Main = Require:get_value("main"),
     Paths = Require:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([""]))),
     Require:set_value("paths", Paths),
     Dirname = filename:absname(Global:get_value("__dirname")),
@@ -114,20 +114,14 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) -
                 [] ->
                     NewCtx = erlv8_context:new(VM),
                     NewGlobal = erlv8_context:global(NewCtx),
-                    lists:foreach(fun ({K, V}) ->
-                                          NewGlobal:set_value(K, V)
-                                  end,
-                                  Global:proplist()),
+                    Global:copy_properties_to(NewGlobal),
                     NewGlobal:set_value("require", fun require_fun/2),
                     NewRequire = NewGlobal:get_value("require"),
-                    lists:foreach(fun ({K, V}) ->
-                                          NewRequire:set_value(K, V)
-                                  end,
-                                  Require:proplist()),
+                    Require:copy_properties_to(NewRequire),
                     NewPaths = NewRequire:get_value("paths"),
                     NewRequire:set_value("paths",
                                          ?V8Arr((lists:usort([Dirname | NewPaths:list()])))),
-                    case Global:get_value("exports") of
+                    case Global:get_value("exports") of %% checks if we are currently in an module or not
                         undefined -> NewGlobal:set_value("module", Global:get_value("module"));
                         _ -> NewGlobal:set_value("module", ?V8Obj([]))
                     end,
@@ -139,10 +133,10 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) -
                     ets:insert(Tab, {Filename, loading}),
                     case erlv8_vm:run(VM, NewCtx, S, {LoadedFilename, 0, 0}) of
                         {ok, _} ->
-                            lists:foreach(fun ({"exports", _}) -> ignore;
-                                              ({"__dirname", _}) -> ignore;
-                                              ({"__filename", _}) -> ignore;
-                                              ({"module", _}) -> ignore;
+                            lists:foreach(fun ({<<"exports">>, _}) -> ignore;
+                                              ({<<"__dirname">>, _}) -> ignore;
+                                              ({<<"__filename">>, _}) -> ignore;
+                                              ({<<"module">>, _}) -> ignore;
                                               ({K, V}) -> Global:set_value(K, V)
                                           end,
                                           NewGlobal:proplist()),
