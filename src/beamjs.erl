@@ -93,7 +93,8 @@ main() ->
     %% [ t:t(X) || X <- [beamjs,erlv8_nif,{erlv8_vm,enqueue_tick}] ],
     %% [ t:t(X) || X <- [{beamjs_mod_require,require_fun},beamjs_mod_test] ],
     case os:getenv("ERLV8_SO_PATH") of
-        false -> os:putenv("ERLV8_SO_PATH", "./deps/erlv8/priv")
+        false -> os:putenv("ERLV8_SO_PATH", "./deps/erlv8/priv");
+        _ -> ok
     end,
     erlv8:start(),
     args(preemption),

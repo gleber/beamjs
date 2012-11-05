@@ -86,18 +86,16 @@ file_reader(Path0, Filename0, Ext) ->
 require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) ->
     Global = Invocation:global(),
     Require = Global:get_value("require"),
-    Main = Require:get_value("main"),
     Paths = Require:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([""]))),
     Require:set_value("paths", Paths),
-    Dirname = filename:absname(Global:get_value("__dirname")),
-    Sources = [V2 || V2 <- [require_file_1(V1, Filename) || V1 <- [Dirname | Paths:list()]],
-                     require_file_1(V2)],
+    Sources = [V2 || V2 <- [do_require_file(V1, Filename) || V1 <- Paths:list()],
+                     require_file_check(V2)],
     %% io:format("~s sources ~p~n", [?MODULE, Sources]),
     case Sources of
         [] ->
             {throw,
              {error, lists:flatten(io_lib:format("Cannot find module '~s'", [Filename]))}};
-        [{Path, LoadedFilename, S} | _] ->
+        [{_Path, LoadedFilename, S} | _] ->
             Tab = erlv8_vm:retr(VM, {beamjs_mod_require, mod_tab}),
             case ets:lookup(Tab, Filename) of
                 [{Filename, loading}] ->
@@ -112,45 +110,44 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
                                                   [Filename, ModuleId]))}};
                 [{Filename, Exports}] -> Exports;
                 [] ->
-                    NewCtx = erlv8_context:new(VM),
-                    NewGlobal = erlv8_context:global(NewCtx),
-                    Global:copy_properties_to(NewGlobal),
-                    NewGlobal:set_value("require", fun require_fun/2),
-                    NewRequire = NewGlobal:get_value("require"),
-                    Require:copy_properties_to(NewRequire),
-                    NewPaths = NewRequire:get_value("paths"),
+                    %% prepare wrapping function
+                    Script = iolist_to_binary(["(function(require, module) {"
+                                               "   var exports = {};",
+                                               S,
+                                               "   ;return exports;",
+                                               "})"]),
+                    %% add module-specific require with require.main
+                    NewRequire = erlv8_vm:taint(VM, fun require_fun/2),
+                    NewRequire:set_value("main", Require:get_value("main"), [dontdelete, readonly]),
                     NewRequire:set_value("paths",
-                                         ?V8Arr((lists:usort([Dirname | NewPaths:list()])))),
-                    case Global:get_value("exports") of %% checks if we are currently in an module or not
-                        undefined -> NewGlobal:set_value("module", Global:get_value("module"));
-                        _ -> NewGlobal:set_value("module", ?V8Obj([]))
-                    end,
-                    Module = NewGlobal:get_value("module"),
+                                         ?V8Arr((lists:usort(Paths:list()))),
+                                         [dontdelete, readonly]),
+                    %% module.id and module.url
+                    Module = erlv8_vm:taint(VM, ?V8Obj([])),
                     Module:set_value("id", Filename, [dontdelete, readonly]),
-                    NewGlobal:set_value("exports", ?V8Obj([])),
-                    NewGlobal:set_value("__dirname", Path),
-                    NewGlobal:set_value("__filename", filename:join([Path, LoadedFilename])),
                     ets:insert(Tab, {Filename, loading}),
-                    case erlv8_vm:run(VM, NewCtx, S, {LoadedFilename, 0, 0}) of
-                        {ok, _} ->
-                            lists:foreach(fun ({<<"exports">>, _}) -> ignore;
-                                              ({<<"__dirname">>, _}) -> ignore;
-                                              ({<<"__filename">>, _}) -> ignore;
-                                              ({<<"module">>, _}) -> ignore;
-                                              ({K, V}) -> Global:set_value(K, V)
-                                          end,
-                                          NewGlobal:proplist()),
-                            Exports = NewGlobal:get_value("exports"),
-                            ets:insert(Tab, {Filename, Exports}),
-                            Exports;
-                        {_, E} ->
+                    %% io:format("Requiring: ~p~n", [Script]),
+                    case erlv8_vm:run(VM, erlv8_context:get(VM), Script, {LoadedFilename, 0, 0}) of
+                        {ok, Wrapped} ->
+                            %% io:format("Wrapped: ~p~n", [erlv8_vm:to_detail_string(VM,Wrapped)]),
+                            case Wrapped:call([NewRequire, Module]) of
+                                {ok, Exports} ->
+                                    ets:insert(Tab, {Filename, Exports}),
+                                    Exports;
+                                {_, {error, E}} ->
+                                    %% io:format("Calling error: ~p~n", [E:proplist()]),
+                                    ets:delete(Tab, Filename),
+                                    {throw, {error, E}}
+                            end;
+                        {_, {error, E}} ->
+                            %% io:format("Wrapping error: ~p~n", [E:proplist()]),
                             ets:delete(Tab, Filename),
                             {throw, {error, E}}
                     end
             end
     end.
 
-require_file_1(Path, Filename) -> file_reader(Path, Filename).
+do_require_file(Path, Filename) -> file_reader(Path, Filename).
 
-require_file_1(not_found) -> false;
-require_file_1(_) -> true.
+require_file_check(not_found) -> false;
+require_file_check(_) -> true.

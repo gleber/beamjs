@@ -9,9 +9,6 @@ load(VM, Bundle) when is_atom(Bundle) -> load(VM, atom_to_list(Bundle));
 load(VM, Bundle) when is_list(Bundle) ->
     Global = erlv8_vm:global(VM),
     Require = Global:get_value("require"),
-    Global:set_value("__dirname", filename:absname("")),
-    Global:set_value("module", ?V8Obj([{<<"id">>, <<"init">>},
-                                       {<<"exports">>, ?V8Obj([])}])),
     Globals = Require:call([filename:join(["lib_bundles", Bundle, "__globals__"])]),
     case Globals of
         #erlv8_object{} ->
