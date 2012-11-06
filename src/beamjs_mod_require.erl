@@ -139,6 +139,7 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) -
                     end,
                     Module = NewGlobal:get_value("module"),
                     Module:set_value("id", Filename, [dontdelete, readonly]),
+                    Module:set_value("url", Path, [dontdelete, readonly]),
                     NewGlobal:set_value("exports", ?V8Obj([])),
                     NewGlobal:set_value("__dirname", Path),
                     NewGlobal:set_value("__filename", filename:join([Path, LoadedFilename])),

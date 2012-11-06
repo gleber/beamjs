@@ -4,6 +4,8 @@
 
 -export([main/0, start/0, stop/0]).
 
+-export([install_require/1, load_main/3]).
+
 start() -> application:start(beamjs).
 
 stop() -> application:stop(beamjs).
@@ -13,7 +15,7 @@ stop() -> application:stop(beamjs).
 install_require(VM) ->
     Global = erlv8_vm:global(VM),
     beamjs_mod_require:init(VM),
-    Global:set_value("require", beamjs_mod_require:exports(VM)).
+    Global:set_value(<<"require">>, beamjs_mod_require:exports(VM)).
 
 %%%
 
@@ -71,21 +73,25 @@ args(VM, Global, load) ->
     case init:get_argument(load) of
         {ok, [Files]} ->
             lists:foreach(fun(File) ->
-                                  Global:set_value("xyz", "def222"),
-                                  io:format("~s Changing XYZ ~s~n", [?MODULE, erlv8_vm:to_detail_string(VM, Global)]),
-                                  Require = Global:get_value("require"),
-                                  Global:set_value("module", ?V8Obj([])),
-                                  Module = Global:get_value("module"),
-                                  Module:set_value("id", File, [dontdelete, readonly]),
-                                  Require:set_value("main", Module, [dontdelete, readonly]),
-                                  case Require:call([File]) of
-                                      {throw, {error, #erlv8_object{} = E}} -> io:format("~p~n", [E:proplist()]);
-                                      _ -> ignore
-                                  end
+                                  load_main(VM, Global, File)
                           end,
                           Files);
         _ -> false
     end.
+
+load_main(_VM, Global, File) ->
+    Require = Global:get_value("require"),
+    Global:set_value("module", ?V8Obj([])),
+    Module = Global:get_value("module"),
+    Module:set_value("id", File, [dontdelete, readonly]),
+    Require:set_value("main", Module, [dontdelete, readonly]),
+    Res = case Require:call([File]) of
+              {throw, {error, #erlv8_object{} = E}} -> io:format("~p~n", [E:proplist()]);
+              _ -> ignore
+          end,
+    %% io:format("load res ~p~n", [Res]),
+    Res.
+
 
 -define(REPL_START, "require('repl').start()").
 
@@ -124,9 +130,3 @@ main() ->
             receive _ -> ok end
     end,
     erlang:halt().
-
--include_lib("eunit/include/eunit.hrl").%
-
--ifdef(TEST).
-
--endif.
