@@ -95,7 +95,7 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
         [] ->
             {throw,
              {error, lists:flatten(io_lib:format("Cannot find module '~s'", [Filename]))}};
-        [{_Path, LoadedFilename, S} | _] ->
+        [{Path, LoadedFilename, S} | _] ->
             Tab = erlv8_vm:retr(VM, {beamjs_mod_require, mod_tab}),
             case ets:lookup(Tab, Filename) of
                 [{Filename, loading}] ->
@@ -125,6 +125,7 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
                     %% module.id and module.url
                     Module = erlv8_vm:taint(VM, ?V8Obj([])),
                     Module:set_value("id", Filename, [dontdelete, readonly]),
+                    Module:set_value("url", Path, [dontdelete, readonly]),
                     ets:insert(Tab, {Filename, loading}),
                     %% io:format("Requiring: ~p~n", [Script]),
                     case erlv8_vm:run(VM, erlv8_context:get(VM), Script, {LoadedFilename, 0, 0}) of
