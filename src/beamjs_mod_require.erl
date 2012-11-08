@@ -40,9 +40,8 @@ require_fun(#erlv8_fun_invocation{vm = VM}, [#erlv8_object{} = Opts]) ->
             erlv8_vm:taint(VM, Mod:exports(VM));
         {_, Modules} when is_list(Modules) ->
             NewExports = erlv8_vm:taint(VM, ?V8Obj([])),
-            Throws = [V2
-                      || V2 <- [require_fun_1(V1, NewExports, VM) || V1 <- Modules],
-                         require_fun_1(V2)],
+            Throws = [V2 || V2 <- [do_require_fun(V1, NewExports, VM) || V1 <- Modules],
+                            require_fun_check(V2)],
             case Throws of
                 [Throw | _] -> Throw;
                 _ -> NewExports
@@ -59,13 +58,13 @@ require_fun(#erlv8_fun_invocation{vm = VM} = Invocation, [Filename]) ->
         Exports -> Exports
     end.
 
-require_fun_1(Module, NewExports, VM) ->
+do_require_fun(Module, NewExports, VM) ->
     Exports = require(VM, Module),
     lists:foreach(fun ({K, V}) -> NewExports:set_value(K, V) end,
                   Exports:proplist()).
 
-require_fun_1({throw, _}) -> true;
-require_fun_1(_) -> false.
+require_fun_check({throw, _}) -> true;
+require_fun_check(_) -> false.
 
 file_reader(Path, Filename) ->
     case file_reader(Path, Filename, ".js") of
@@ -87,12 +86,15 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
     Global = Invocation:global(),
     Require = Global:get_value("require"),
     Paths = Require:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([]))),
-    Dirname  = filename:absname(Require:get_value("__dirname")),
+    Module = Global:get_value("module"),
+    ModuleId = case Module of
+                   undefined -> undefined;
+                   _ -> Module:get_value("id")
+               end,
+    Dirname = Require:get_value("__dirname"),
     Require:set_value("paths", Paths),
     Sources = [V2 || V2 <- [do_require_file(V1, Filename) || V1 <- [Dirname | Paths:list()]],
                      require_file_check(V2)],
-    %% io:format(user, "~s paths ~p~n", [?MODULE, (Require:get_value("paths")):list()]),
-    %% io:format(user, "~s sources ~p~n", [?MODULE, Sources]),
     case Sources of
         [] ->
             {throw,
@@ -101,7 +103,6 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
             Tab = erlv8_vm:retr(VM, {beamjs_mod_require, mod_tab}),
             case ets:lookup(Tab, Filename) of
                 [{Filename, loading}] ->
-                    Module = Global:get_value("module"),
                     ModuleId = Module:get_value("id"),
                     ets:delete(Tab, Filename),
                     ets:delete(Tab, ModuleId),
@@ -113,38 +114,42 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
                 [{Filename, Exports}] -> Exports;
                 [] ->
                     %% prepare wrapping function
-                    Script = iolist_to_binary(["(function(require, module) {"
+                    Script = iolist_to_binary(["(function(require, module, __dirname, __filename) {"
                                                "   var exports = {};",
                                                S,
                                                "   ;return exports;",
                                                "})"]),
                     %% add module-specific require with require.main
                     NewRequire = erlv8_vm:taint(VM, fun require_fun/2),
-                    NewRequire:set_value("main", Require:get_value("main"), [dontdelete, readonly]),
-                    NewRequire:set_value("paths",
-                                         ?V8Arr((lists:usort([Dirname | Paths:list()]))),
-                                         [dontdelete, readonly]),
+                    NewRequire:set_value("main", Require:get_value("main")),
+                    NewPath = ?V8Arr((lists:usort([Path, Dirname | Paths:list()]))),
+                    NewRequire:set_value("paths", NewPath, [dontdelete, readonly]),
                     NewRequire:set_value("__dirname", Path, [dontdelete, readonly]),
+                    Require:set_value("__dirname", Path, [dontdelete, readonly]),
+                    Require:set_value("paths", NewPath),
+
                     %% module.id and module.url
-                    Module = erlv8_vm:taint(VM, ?V8Obj([])),
-                    Module:set_value("id", Filename, [dontdelete, readonly]),
-                    Module:set_value("url", Path, [dontdelete, readonly]),
+                    NewModule = case ModuleId of
+                                    Filename -> Module;
+                                    _ ->
+                                        NM = erlv8_vm:taint(VM, ?V8Obj([])),
+                                        NM:set_value("id", Filename, [dontdelete, readonly]),
+                                        NM:set_value("url", Path, [dontdelete, readonly])
+                                end,
+                    
                     ets:insert(Tab, {Filename, loading}),
-                    %% io:format("Requiring: ~p~n", [Script]),
+
                     case erlv8_vm:run(VM, erlv8_context:get(VM), Script, {LoadedFilename, 0, 0}) of
                         {ok, Wrapped} ->
-                            %% io:format("Wrapped: ~p~n", [erlv8_vm:to_detail_string(VM,Wrapped)]),
-                            case Wrapped:call([NewRequire, Module]) of
-                                {ok, Exports} ->
+                            case Wrapped:call([NewRequire, NewModule, Path, Filename]) of
+                                Exports when ?is_v8(Exports) ->
                                     ets:insert(Tab, {Filename, Exports}),
                                     Exports;
                                 {_, {error, E}} ->
-                                    %% io:format("Calling error: ~p~n", [E:proplist()]),
                                     ets:delete(Tab, Filename),
                                     {throw, {error, E}}
                             end;
                         {_, {error, E}} ->
-                            %% io:format("Wrapping error: ~p~n", [E:proplist()]),
                             ets:delete(Tab, Filename),
                             {throw, {error, E}}
                     end

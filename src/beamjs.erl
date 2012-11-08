@@ -84,6 +84,7 @@ load_main(_VM, Global, File) ->
     Global:set_value("module", ?V8Obj([])),
     Module = Global:get_value("module"),
     Module:set_value("id", File, [dontdelete, readonly]),
+    Module:set_value("url", File, [dontdelete, readonly]),
     Require:set_value("main", Module, [dontdelete, readonly]),
     Res = case Require:call([File]) of
               {throw, {error, #erlv8_object{} = E}} -> io:format("~p~n", [E:proplist()]);

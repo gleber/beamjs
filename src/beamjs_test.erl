@@ -24,8 +24,6 @@ commonjs_test() ->
                _ -> "."
            end,
     Req:set_value("paths", ?V8Arr([Root])),
-    %% io:format(user, "initial paths: ~p~n", [(Req:get_value("paths")):list()]),
-    %% io:format(user, "initial cwd: ~p~n", [file:get_cwd()]),
     true = (Req /= undefined),
     [ beamjs_bundle:load(VM, X) || X <- [default, node_compat, commonjs] ],
     beamjs:load_main(VM, Global, "deps/commonjs/tests/unit-testing/1.0/program.js"),

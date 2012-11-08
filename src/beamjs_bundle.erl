@@ -10,6 +10,7 @@ load(VM, Bundle) when is_list(Bundle) ->
     Global = erlv8_vm:global(VM),
     Require = Global:get_value("require"),
     Require:set_value("__dirname", filename:absname(""), [dontdelete, readonly]),
+    
     Globals = Require:call([filename:join(["lib_bundles", Bundle, "__globals__"])]),
     case Globals of
         #erlv8_object{} ->
@@ -21,6 +22,7 @@ load(VM, Bundle) when is_list(Bundle) ->
         _V ->
             error({bundle, Globals})
     end,
+
     Modules = Require:call([filename:join(["lib_bundles", Bundle, "__modules__"])]),
     case Modules of
         #erlv8_object{} ->
@@ -33,4 +35,5 @@ load(VM, Bundle) when is_list(Bundle) ->
         {throw, _} ->
             error({bundle, Modules})
     end,
+
     Bundle.
