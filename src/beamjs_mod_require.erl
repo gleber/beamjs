@@ -86,7 +86,6 @@ file_reader(Path0, Filename0, Ext) ->
 require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) ->
     Global = Invocation:global(),
     io:format("~s Requiring ~p~n", [?MODULE, Filename]),
-    io:format("~s XYZ in require: ~p~n~n", [?MODULE, Global:get_value("xyz")]),
     %%Require = erlv8_vm:taint(VM, fun require_fun/2),
     Require = Global:get_value("require"),
     RequireObject = Require:object(),
