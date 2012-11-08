@@ -86,11 +86,13 @@ file_reader(Path0, Filename0, Ext) ->
 require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) ->
     Global = Invocation:global(),
     Require = Global:get_value("require"),
-    Paths = Require:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([""]))),
+    Paths = Require:get_value("paths", erlv8_vm:taint(VM, ?V8Arr([]))),
+    Dirname  = filename:absname(Require:get_value("__dirname")),
     Require:set_value("paths", Paths),
-    Sources = [V2 || V2 <- [do_require_file(V1, Filename) || V1 <- Paths:list()],
+    Sources = [V2 || V2 <- [do_require_file(V1, Filename) || V1 <- [Dirname | Paths:list()]],
                      require_file_check(V2)],
-    %% io:format("~s sources ~p~n", [?MODULE, Sources]),
+    %% io:format(user, "~s paths ~p~n", [?MODULE, (Require:get_value("paths")):list()]),
+    %% io:format(user, "~s sources ~p~n", [?MODULE, Sources]),
     case Sources of
         [] ->
             {throw,
@@ -120,8 +122,9 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename) 
                     NewRequire = erlv8_vm:taint(VM, fun require_fun/2),
                     NewRequire:set_value("main", Require:get_value("main"), [dontdelete, readonly]),
                     NewRequire:set_value("paths",
-                                         ?V8Arr((lists:usort(Paths:list()))),
+                                         ?V8Arr((lists:usort([Dirname | Paths:list()]))),
                                          [dontdelete, readonly]),
+                    NewRequire:set_value("__dirname", Path, [dontdelete, readonly]),
                     %% module.id and module.url
                     Module = erlv8_vm:taint(VM, ?V8Obj([])),
                     Module:set_value("id", Filename, [dontdelete, readonly]),

@@ -9,12 +9,15 @@ load(VM, Bundle) when is_atom(Bundle) -> load(VM, atom_to_list(Bundle));
 load(VM, Bundle) when is_list(Bundle) ->
     Global = erlv8_vm:global(VM),
     Require = Global:get_value("require"),
+    Require:set_value("__dirname", filename:absname(""), [dontdelete, readonly]),
     Globals = Require:call([filename:join(["lib_bundles", Bundle, "__globals__"])]),
     case Globals of
         #erlv8_object{} ->
             Globals:copy_properties_to(Global);
-        {throw, {error, E}} ->
+        {throw, {error, E}} when is_tuple(E) ->
             error({bundle, {error, E:proplist()}});
+        {throw, {error, E}} ->
+            error({bundle, {error, E}});
         _V ->
             error({bundle, Globals})
     end,
