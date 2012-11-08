@@ -145,10 +145,10 @@ require_file(#erlv8_fun_invocation{vm = VM, ctx = Ctx} = Invocation, Filename) -
                     ets:insert(Tab, {Filename, loading}),
                     case erlv8_vm:run(VM, NewCtx, S, {LoadedFilename, 0, 0}) of
                         {ok, _} ->
-                            lists:foreach(fun ({"exports", _}) -> ignore;
-                                              ({"__dirname", _}) -> ignore;
-                                              ({"__filename", _}) -> ignore;
-                                              ({"module", _}) -> ignore;
+                            lists:foreach(fun ({<<"exports">>, _}) -> ignore;
+                                              ({<<"__dirname">>, _}) -> ignore;
+                                              ({<<"__filename">>, _}) -> ignore;
+                                              ({<<"module">>, _}) -> ignore;
                                               ({K, V}) -> Global:set_value(K, V)
                                           end,
                                           NewGlobal:proplist()),
