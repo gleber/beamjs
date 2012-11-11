@@ -13,7 +13,7 @@ sh:
 	@./shell
 
 eunit: compile
-	@./rebar eunit
+	@./rebar eunit skip_deps=true
 
 test: compile eunit test-commonjs
 
