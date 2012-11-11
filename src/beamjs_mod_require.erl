@@ -13,7 +13,11 @@ init(VM) ->
 
 exports(VM) ->
     {ok, Cwd} = file:get_cwd(),
-    Paths = erlv8_vm:taint(VM, ?V8Arr([Cwd])),
+    Paths0 = case os:getenv("NODE_PATH") of
+                 false -> [Cwd];
+                 NodePath -> [Cwd, NodePath]
+             end,
+    Paths = erlv8_vm:taint(VM, ?V8Arr(Paths0)),
     Paths:set_value("__doc__",
                     "Array of paths where require() will be looking for modules"),
     erlv8_fun:new(fun require_fun/2,
