@@ -6,10 +6,10 @@
 
 -include_lib("erlv8/include/erlv8.hrl").
 
-                                                % internal
+%% internal
 -export([prototype_Manager/0]).
 
-                                                %-behaviour(gen_event). % commented this out just because of init/1 conflict warning
+%%-behaviour(gen_event). % commented this out just because of init/1 conflict warning
 -export([code_change/3, handle_call/2, handle_event/2, handle_info/2,
          terminate/2]).
 
@@ -19,7 +19,8 @@ init({gen_event, Handler}) -> %% gen_event
     {ok, Handler};
 init({{gen_event, Handler}, Term}) -> %% gen_event
     case Handler:get_value("_onTakeover") of
-        #erlv8_fun{} = F -> Handler:call(F, [Term]);
+        #erlv8_fun{} = F ->
+            Handler:call(F, [Term]);
         _ -> skip
     end,
     {ok, Handler};
@@ -52,7 +53,7 @@ new_gen_event(#erlv8_fun_invocation{this = This}, []) ->
 
 new_handler(#erlv8_fun_invocation{}, []) -> undefined;
 new_handler(#erlv8_fun_invocation{this = This} = I, [#erlv8_object{} = Obj]) ->
-    lists:foreach(fun ({K, V}) -> This:set_value(K, V) end, Obj:proplist()),
+    Obj:copy_properties_to(This),
     new_handler(I, []);
 new_handler(#erlv8_fun_invocation{this = This} = I, [#erlv8_fun{} = F]) ->
     This:set_value("_onEvent", F), new_handler(I, []).

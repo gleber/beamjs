@@ -64,8 +64,7 @@ require_fun(#erlv8_fun_invocation{vm = VM} = Invocation, [Filename]) ->
 
 do_require_fun(Module, NewExports, VM) ->
     Exports = require(VM, Module),
-    lists:foreach(fun ({K, V}) -> NewExports:set_value(K, V) end,
-                  Exports:proplist()).
+    Exports:copy_properties_to(NewExports).
 
 require_fun_check({throw, _}) -> true;
 require_fun_check(_) -> false.

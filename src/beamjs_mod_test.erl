@@ -17,11 +17,13 @@ run(#erlv8_fun_invocation{vm = VM} = I, [#erlv8_object{} = Tests]) ->
                           case Test:call() of
                               {throw, E} ->
                                   case E of
-                                      E when is_list(E) -> io:format("     \e[31mfailed: ~s\e[0m~n", [E]);
+                                      E when is_list(E) ->
+                                          io:format("     \e[31mfailed: ~s\e[0m~n", [E]);
                                       {error, #erlv8_object{} = Exc} ->
                                           io:format("     \e[31mfailed: ~s\e[0m~n", [beamjs_js_formatter:format(VM, Exc)])
                                   end;
-                              _ -> io:format("    \e[32mpassed\e[0m~n")
+                              _ ->
+                                  io:format("    \e[32mpassed\e[0m~n")
                           end;
                       ({<<"test", Name/binary>>, #erlv8_object{} = TestsObj}) when size(Name) > 0 ->
                           run(I, [TestsObj]);
