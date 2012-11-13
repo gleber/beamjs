@@ -13,7 +13,7 @@ commonjs_test() ->
     beamjs:start(),
     {ok, VM} = erlv8_vm:start(),
     Global = erlv8_vm:global(VM),
-    beamjs:install_require(VM),
+    beamjs:install_require(VM, "."),
     Req = Global:get_value(<<"require">>),
     Root = case file:get_cwd() of %% figure out root of the project even if we are in .eunit
                {ok, Path} ->

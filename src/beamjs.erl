@@ -4,7 +4,7 @@
 
 -export([main/0, start/0, stop/0]).
 
--export([install_require/1, load_main/3]).
+-export([install_require/2, load_main/3]).
 
 start() -> application:start(beamjs).
 
@@ -12,10 +12,14 @@ stop() -> application:stop(beamjs).
 
 %%%
 
-install_require(VM) ->
+install_require(VM, Root) ->
     Global = erlv8_vm:global(VM),
     beamjs_mod_require:init(VM),
-    Global:set_value(<<"require">>, beamjs_mod_require:exports(VM)).
+    Require = erlv8_vm:taint(VM, beamjs_mod_require:exports(VM)),
+    Path = Require:get_value(<<"paths">>),
+    Path:unshift(Root),
+    Global:set_value(<<"require">>, Require).
+
 
 %%%
 
@@ -99,8 +103,9 @@ load_main(_VM, Global, File) ->
 main() ->
     %% [ t:t(X) || X <- [beamjs,erlv8_nif,{erlv8_vm,enqueue_tick}] ],
     %% [ t:t(X) || X <- [{beamjs_mod_require,require_fun},beamjs_mod_test] ],
+    Root = filename:dirname(filename:dirname(code:where_is_file("beamjs.beam"))),
     case os:getenv("ERLV8_SO_PATH") of
-        false -> os:putenv("ERLV8_SO_PATH", "./deps/erlv8/priv");
+        false -> os:putenv("ERLV8_SO_PATH", Root++"/deps/erlv8/priv");
         _ -> ok
     end,
     erlv8:start(),
@@ -108,7 +113,7 @@ main() ->
     start(),
     {ok, VM} = erlv8_vm:start(),
     Global = erlv8_vm:global(VM),
-    install_require(VM),
+    install_require(VM, Root),
     args(VM, Global, jseval),
     beamjs_bundle:load(VM, default),
     NoRepl = args(norepl),
