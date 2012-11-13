@@ -5,3 +5,4 @@ erl_crash.dump
 rel/beamjs
 beamjs.tar
 beamjs.tar.gz
+/deps/jsx/

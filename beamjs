@@ -1,11 +1,4 @@
 #! /bin/sh
 DIRNAME=`dirname $0`
-EVAL="[t:t(X) || X <- [erlv8_context,
-beamjs_bundle,
-erlv8_object,
-erlv8_fun,
-erlv8_vm,
-beamjs_mod_require,
-beamjs_mod_erlang]]"
-#-eval "$EVAL"
-erl -noinput -noshell -pa $DIRNAME/ebin $DIRNAME/deps/erlv8/ebin -s beamjs main -- $*
+RLWRAP=`which rlwrap`
+exec $RLWRAP  erl -noinput -noshell -pa $DIRNAME/ebin $DIRNAME/deps/*/ebin -s beamjs main -- $*
