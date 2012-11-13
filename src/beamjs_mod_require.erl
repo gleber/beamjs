@@ -99,13 +99,15 @@ require_module(#erlv8_fun_invocation{vm = VM, ctx = _Ctx} = Invocation, Filename
                    _ -> Module:get_value("id")
                end,
     Dirname = Require:get_value("__dirname"),
+    AllPaths = [Dirname | Paths:list()],
     Require:set_value("paths", Paths),
-    Sources = [V2 || V2 <- [do_require_module(V1, Filename) || V1 <- [Dirname | Paths:list()]],
+    Sources = [V2 || V2 <- [do_require_module(V1, Filename) || V1 <- AllPaths],
                      require_file_check(V2)],
     case Sources of
         [] ->
+            AllPathsNice = [ [binary_to_list(X), ", \n"] || X <- AllPaths ],
             {throw,
-             {error, lists:flatten(io_lib:format("Cannot find module '~s'", [Filename]))}};
+             {error, lists:flatten(io_lib:format("Cannot find module '~s' in paths:~n~s", [Filename, AllPathsNice]))}};
         [{Path, LoadedFilename, S} | _] ->
             Tab = erlv8_vm:retr(VM, {beamjs_mod_require, mod_tab}),
             case ets:lookup(Tab, Filename) of
@@ -190,11 +192,16 @@ package_json_reader(Path, Package) ->
             not_found;
         {ok, Data} ->
             try
-                Package = jsx:decode(Data),
-                case proplists:get_value(<<"main">>, Package) of
+                Manifest = jsx:decode(Data),
+                case proplists:get_value(<<"main">>, Manifest) of
                     undefined -> not_found;
                     Filename ->
-                        file_reader0(filename:join([Path, Package, Filename]))
+                        case file_reader0(filename:join([Path, Package, Filename])) of
+                            not_found ->
+                                file_reader0(filename:join([Path, Package, binary_to_list(Filename)++".js"]));
+                            Res ->
+                                Res
+                        end
                 end
             catch
                 _:_ ->
